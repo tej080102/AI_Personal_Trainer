@@ -263,9 +263,10 @@ with tab2:
 # ---------------- Tab 3: AI Coach ---------------- #
 with tab3:
     st.subheader("Ask your AI coach")
-    q = st.text_input("Your question:", placeholder="e.g., What should I eat after today's workout?")
-    if st.button("Ask Coach"):
-        if q.strip():
+    with st.form("coach_form", clear_on_submit=True):
+        q = st.text_input("Your question:", placeholder="e.g., What should I eat after today's workout?")
+        submitted = st.form_submit_button("Ask Coach")
+        if submitted and q.strip():
             rows = get_workouts(user_id)
             df = pd.DataFrame(rows, columns=["id","date","exercise","sets","reps","weight","distance","duration"]).drop(columns=["id"], errors="ignore")
             def parse_reps(v):
@@ -286,5 +287,6 @@ User question: {q}
                 st.markdown(f"*Coach:* {res['output']}")
             else:
                 st.error(res["error"])
+
 
 
