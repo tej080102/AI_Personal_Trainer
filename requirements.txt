@@ -3,11 +3,12 @@ streamlit>=1.25.0
 pandas>=2.0.0
 plotly>=5.15.0
 
-# For password hashing
-hashlib; python_version >= "3.6"
+# Database & Auth
+sqlalchemy>=2.0.0
+bcrypt>=4.0.1
 
-# For Hugging Face API (cloud version)
+# AI Integrations
 requests>=2.31.0
 
-# Local LLM (Ollama)
-ollama  # lightweight wrapper for calling ollama
+# For Hugging Face mode
+huggingface_hub>=0.22.0
