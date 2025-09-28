@@ -41,7 +41,7 @@ def setup_api_key_ui():
     return api_key
 
 
-def call_huggingface(prompt: str, max_tokens: int = 256) -> Dict[str, str]:
+def call_huggingface(prompt: str, max_tokens: int = 400) -> Dict[str, str]:
     """
     Call Llama 3.1 8B Instruct via chat_completion API.
     Always return a dict with {ok, output, error}.
@@ -76,3 +76,4 @@ def call_huggingface(prompt: str, max_tokens: int = 256) -> Dict[str, str]:
         import traceback
         traceback.print_exc()
         return {"ok": False, "output": "", "error": f"Inference error: {repr(e)}"}
+
