@@ -12,7 +12,7 @@ from db import (
 )
 from llm2 import call_huggingface, setup_api_key_ui
 
-st.set_page_config(page_title="AI Personal Trainer (Cloud)", page_icon="💪", layout="wide")
+st.set_page_config(page_title="AI Personal Trainer", page_icon="💪", layout="wide")
 st.title("💪 AI Personal Trainer (Hugging Face + Llama-3.1-8B-Instruct)")
 
 # Initialize database
@@ -287,6 +287,7 @@ User question: {q}
                 st.markdown(f"*Coach:* {res['output']}")
             else:
                 st.error(res["error"])
+
 
 
 
