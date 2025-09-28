@@ -9,7 +9,7 @@ import plotly.express as px
 from db import init_db, get_workouts, save_workout, clear_workouts, delete_last_entry, delete_by_id, create_user, check_user
 from llm import call_local_llm
 
-st.set_page_config(page_title="AI Personal Trainer (Local)", page_icon="💪", layout="wide")
+st.set_page_config(page_title="AI Personal Trainer (Ollama + Mistral)", page_icon="💪", layout="wide")
 st.title("💪 AI Personal Trainer (Local Version - Mistral via Ollama)")
 
 # Initialize database
