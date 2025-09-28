@@ -3,9 +3,6 @@ streamlit>=1.25.0
 pandas>=2.0.0
 plotly>=5.15.0
 
-# Database
-sqlite3-binary  # some platforms require explicit install
-
 # For password hashing
 hashlib; python_version >= "3.6"
 
