@@ -1,3 +1,16 @@
-streamlit>=1.37
-pandas>=2.0
-numpy>=1.25
+# Core
+streamlit>=1.25.0
+pandas>=2.0.0
+plotly>=5.15.0
+
+# Database
+sqlite3-binary  # some platforms require explicit install
+
+# For password hashing
+hashlib; python_version >= "3.6"
+
+# For Hugging Face API (cloud version)
+requests>=2.31.0
+
+# Local LLM (Ollama)
+ollama  # lightweight wrapper for calling ollama
