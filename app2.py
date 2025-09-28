@@ -281,9 +281,10 @@ Workout history for {user_id}: {context_json}
 User question: {q}
 - Be concise (≤6 sentences). If injury → add consult disclaimer.
 """
-            res = call_huggingface(coach_prompt, timeout=45)
+            res = call_huggingface(coach_prompt)
             if res["ok"]:
                 st.markdown(f"*Coach:* {res['output']}")
             else:
                 st.error(res["error"])
+
 
