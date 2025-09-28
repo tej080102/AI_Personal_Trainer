@@ -1,111 +1,78 @@
-import requests
+# llm2.py
+import os
+import re
 import json
 import streamlit as st
 from typing import Dict, Optional
+from huggingface_hub import InferenceClient
 
-# The model we'll use from Hugging Face
-MODEL_ID = "google/flan-t5-large"
-API_URL = f"https://api-inference.huggingface.co/models/{MODEL_ID}"
+DEFAULT_MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
+MODEL_ID = os.getenv("HF_MODEL_ID", DEFAULT_MODEL_ID).strip()
+
 
 def get_huggingface_api_key() -> Optional[str]:
-    """Get the Hugging Face API key from Streamlit secrets or environment."""
-    # First try to get from Streamlit secrets
-    try:
-        return st.secrets["HUGGINGFACE_API_KEY"]
-    except Exception:
-        # Then try to get from session state (if user provided it in UI)
-        return st.session_state.get("HUGGINGFACE_API_KEY")
+    for k in ("HUGGINGFACE_API_KEY", "HF_API_KEY", "hf_api_key"):
+        try:
+            if k in st.secrets and st.secrets[k]:
+                return str(st.secrets[k]).strip()
+        except Exception:
+            pass
+        if os.getenv(k):
+            return os.getenv(k).strip()
+        if st.session_state.get(k):
+            return str(st.session_state[k]).strip()
+    return None
+
 
 def setup_api_key_ui():
-    """Display UI for API key input if not already configured."""
     api_key = get_huggingface_api_key()
-    if api_key is None:
-        st.warning("⚠️ Hugging Face API key not found in configuration.")
-        api_key = st.text_input(
+    if not api_key:
+        st.warning("⚠️ Hugging Face API key not found.")
+        entered = st.text_input(
             "Enter your Hugging Face API key:",
             type="password",
-            help="Get your API key from https://huggingface.co/settings/tokens"
+            help="Get your key at https://huggingface.co/settings/tokens",
         )
-        if api_key:
-            st.session_state["HUGGINGFACE_API_KEY"] = api_key
-            st.success("✅ API key saved for this session!")
-        return api_key
+        if entered:
+            st.session_state["HUGGINGFACE_API_KEY"] = entered.strip()
+            st.success("✅ API key saved for this session.")
+            return entered.strip()
+        return None
     return api_key
 
-def call_huggingface(prompt: str, timeout: int = 30) -> Dict[str, str]:
-    """Send a prompt to Hugging Face model and return dict {ok, output, error}."""
-    api_key = get_huggingface_api_key()
-    
-    if not api_key:
-        return {
-            "ok": False,
-            "output": "",
-            "error": "Hugging Face API key not configured. Please add it in the settings."
-        }
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+def call_huggingface(prompt: str, max_tokens: int = 256) -> Dict[str, str]:
+    """
+    Call Llama 3.1 8B Instruct via chat_completion API.
+    Always return a dict with {ok, output, error}.
+    """
+    api_key = get_huggingface_api_key()
+    if not api_key:
+        return {"ok": False, "output": "", "error": "Missing Hugging Face API key."}
 
     try:
-        # T5 works better with structured, concise prompts
-        if "Role: Expert fitness coach" in prompt:
-            # For coaching prompts, keep the structure but make it more concise
-            formatted_prompt = prompt
-        else:
-            # For workout parsing, we already have a concise prompt from app2.py
-            formatted_prompt = prompt
-        
-        response = requests.post(
-            API_URL,
-            headers=headers,
-            json={"inputs": formatted_prompt, "parameters": {"max_length": 512}},
-            timeout=timeout
+        client = InferenceClient(model=MODEL_ID, token=api_key)
+
+        resp = client.chat_completion(
+            model=MODEL_ID,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=0.1,
         )
 
-        if response.status_code != 200:
-            return {
-                "ok": False,
-                "output": "",
-                "error": f"API Error: {response.text}"
-            }
+        output = resp["choices"][0]["message"]["content"]
 
-        # Parse and clean the response
-        output = response.json()[0]["generated_text"]
-        
-        # Try to extract JSON if it's wrapped in markdown code blocks
+        # Try to clean/extract JSON if the model wrapped it in code fences
         try:
-            # First try to parse as-is
             json.loads(output)
-            clean_output = output
+            clean = output
         except json.JSONDecodeError:
-            # Try to extract from markdown code blocks if present
-            import re
-            json_match = re.search(r'```(?:json)?\s*(.*?)```', output, re.DOTALL)
-            clean_output = json_match.group(1) if json_match else output
+            m = re.search(r"```(?:json)?\s*(.*?)```", output, re.DOTALL)
+            clean = m.group(1).strip() if m else output
 
-        return {
-            "ok": True,
-            "output": clean_output,
-            "error": ""
-        }
+        return {"ok": True, "output": clean, "error": ""}
 
-    except requests.exceptions.Timeout:
-        return {
-            "ok": False,
-            "output": "",
-            "error": "Request timed out. Please try again."
-        }
-    except requests.exceptions.RequestException as e:
-        return {
-            "ok": False,
-            "output": "",
-            "error": f"Request failed: {str(e)}"
-        }
     except Exception as e:
-        return {
-            "ok": False,
-            "output": "",
-            "error": f"Unexpected error: {str(e)}"
-        }
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "output": "", "error": f"Inference error: {repr(e)}"}
