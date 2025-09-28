@@ -1,41 +1,43 @@
 import subprocess
-import streamlit as st
+import json
 
 MODEL_NAME = "mistral"
 
-def call_ollama(prompt: str, timeout: int = 30) -> dict:
-    """Send a prompt to Ollama model and return dict {ok, stdout, stderr}.
-    If the model is missing, automatically pull it once and retry.
+def call_local_llm(prompt: str, timeout: int = 60, max_tokens: int = 512):
     """
-    def run_model():
-        return subprocess.run(
-            ["ollama", "run",  MODEL_NAME],
-            input=prompt,
+    Call Ollama locally with the mistral model.
+    Returns dict {ok, output, error}.
+    """
+    try:
+        # Run ollama command
+        result = subprocess.run(
+            ["ollama", "run", MODEL_NAME],
+            input=prompt.encode("utf-8"),
             capture_output=True,
-            text=True,
-            timeout=timeout,
+            timeout=timeout
         )
 
-    try:
-        proc = run_model()
-        if proc.returncode != 0 and "not found" in (proc.stderr or "").lower():
-            st.info(f"📥 Pulling model '{MODEL_NAME}' (this may take a while on first run)...")
-            pull = subprocess.run(
-                ["ollama", "pull", MODEL_NAME],
-                capture_output=True,
-                text=True,
-                timeout=None,
-            )
-            if pull.returncode == 0:
-                proc = run_model()
-            else:
-                return {"ok": False, "stdout": "", "stderr": pull.stderr or "Model pull failed."}
-        return {
-            "ok": proc.returncode == 0,
-            "stdout": (proc.stdout or "").strip(),
-            "stderr": (proc.stderr or "").strip(),
-        }
-    except FileNotFoundError:
-        return {"ok": False, "stdout": "", "stderr": "Ollama not found. Install or add to PATH."}
+        if result.returncode != 0:
+            return {
+                "ok": False,
+                "output": "",
+                "error": result.stderr.decode("utf-8") if result.stderr else "Unknown Ollama error"
+            }
+
+        output = result.stdout.decode("utf-8").strip()
+
+        # Clean JSON if wrapped in markdown
+        try:
+            json.loads(output)
+            clean_output = output
+        except Exception:
+            import re
+            match = re.search(r'```(?:json)?\s*(.*?)```', output, re.DOTALL)
+            clean_output = match.group(1).strip() if match else output
+
+        return {"ok": True, "output": clean_output, "error": ""}
+
     except subprocess.TimeoutExpired:
-        return {"ok": False, "stdout": "", "stderr": "Ollama run timed out."}
+        return {"ok": False, "output": "", "error": "Request timed out."}
+    except Exception as e:
+        return {"ok": False, "output": "", "error": str(e)}
