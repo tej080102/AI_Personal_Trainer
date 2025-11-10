@@ -1,4 +1,4 @@
-
+Try it at https://aipersonaltrainer.streamlit.app/
 # 💪 AI Personal Trainer
 
 An AI-powered personal trainer built with **Streamlit**, supporting **workout logging, analytics, and AI-driven coaching**.  
