@@ -1,0 +1,329 @@
+# ============= Namespace ============= #
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-trainer
+
+---
+# ============= ConfigMap for Environment Variables ============= #
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trainer-config
+  namespace: ai-trainer
+data:
+  POSTGRES_DB: "trainer"
+  POSTGRES_USER: "trainer_user"
+  OLLAMA_BASE_URL: "http://ollama-service:11434"
+  OLLAMA_MODEL: "mistral"
+  LOG_LEVEL: "INFO"
+
+---
+# ============= Secrets (Base64 encoded) ============= #
+# Note: Replace these with actual base64-encoded values
+# Example: echo -n "mypassword" | base64
+apiVersion: v1
+kind: Secret
+metadata:
+  name: trainer-secrets
+  namespace: ai-trainer
+type: Opaque
+data:
+  DB_PASSWORD: Y2hhbmdlbWUxMjM=  # "changeme123" - CHANGE THIS!
+  # OPENAI_API_KEY: <base64-encoded-key>  # Uncomment for cloud mode
+
+---
+# ============= PostgreSQL Persistent Volume Claim ============= #
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: ai-trainer
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# ============= PostgreSQL Deployment ============= #
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: ai-trainer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: trainer-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: trainer-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: trainer-secrets
+              key: DB_PASSWORD
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - trainer_user
+            - -d
+            - trainer
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - trainer_user
+            - -d
+            - trainer
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+
+---
+# ============= PostgreSQL Service ============= #
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: ai-trainer
+spec:
+  selector:
+    app: postgres
+  ports:
+  - protocol: TCP
+    port: 5432
+    targetPort: 5432
+  type: ClusterIP
+
+---
+# ============= Ollama Persistent Volume Claim ============= #
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-pvc
+  namespace: ai-trainer
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi  # Ollama models can be large
+
+---
+# ============= Ollama Deployment ============= #
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ai-trainer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+      - name: ollama
+        image: ollama/ollama:latest
+        ports:
+        - containerPort: 11434
+        volumeMounts:
+        - name: ollama-storage
+          mountPath: /root/.ollama
+        # Pull mistral model on startup
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            ollama serve &
+            sleep 10
+            ollama pull mistral
+            wait
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+      volumes:
+      - name: ollama-storage
+        persistentVolumeClaim:
+          claimName: ollama-pvc
+
+---
+# ============= Ollama Service ============= #
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-service
+  namespace: ai-trainer
+spec:
+  selector:
+    app: ollama
+  ports:
+  - protocol: TCP
+    port: 11434
+    targetPort: 11434
+  type: ClusterIP
+
+---
+# ============= FastAPI Deployment (Local Mode) ============= #
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trainer-api-local
+  namespace: ai-trainer
+spec:
+  replicas: 2  # Scale for high availability
+  selector:
+    matchLabels:
+      app: trainer-api
+      mode: local
+  template:
+    metadata:
+      labels:
+        app: trainer-api
+        mode: local
+    spec:
+      containers:
+      - name: api
+        image: your-docker-registry/ai-trainer:latest  # Replace with your image
+        imagePullPolicy: Always
+        env:
+        - name: POSTGRES_URL
+          value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres-service:5432/$(POSTGRES_DB)"
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: trainer-config
+              key: POSTGRES_USER
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: trainer-config
+              key: POSTGRES_DB
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: trainer-secrets
+              key: DB_PASSWORD
+        - name: OLLAMA_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: trainer-config
+              key: OLLAMA_BASE_URL
+        - name: OLLAMA_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: trainer-config
+              key: OLLAMA_MODEL
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: trainer-config
+              key: LOG_LEVEL
+        command: ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8000"]
+        ports:
+        - containerPort: 8000
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+
+---
+# ============= FastAPI Service ============= #
+apiVersion: v1
+kind: Service
+metadata:
+  name: trainer-api-service
+  namespace: ai-trainer
+spec:
+  selector:
+    app: trainer-api
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+  type: LoadBalancer  # Change to ClusterIP if using Ingress
+
+---
+# ============= Ingress (Optional - for production) ============= #
+# Uncomment and configure for production with proper domain/TLS
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: trainer-ingress
+#   namespace: ai-trainer
+#   annotations:
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+# spec:
+#   ingressClassName: nginx
+#   tls:
+#   - hosts:
+#     - api.aitrainer.example.com
+#     secretName: trainer-tls
+#   rules:
+#   - host: api.aitrainer.example.com
+#     http:
+#       paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: trainer-api-service
+#             port:
+#               number: 80

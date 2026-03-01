@@ -8,19 +8,11 @@ An intelligent fitness application that generates **personalized, injury-safe wo
 
 ## ✨ Features
 
-- **Multi-Agent Safety Loop**
-  ![Safety Loop](new/assets/safety.png)
-  LangGraph state machine orchestrates Trainer ↔ Physiotherapist agents with automatic revision cycles (up to 3x)
-  ![Plan Setup](new/assets/plan.png)
+- **Multi-Agent Safety Loop** — LangGraph state machine orchestrates Trainer ↔ Physiotherapist agents with automatic revision cycles (up to 3x)
 - **Natural Language Workout Logging** — Log workouts in plain English, parsed by LLM
-- **Injury-Aware Planning**
-  ![Injury Tracking](new/assets/injury.png)
-  Active injuries are cross-referenced against every exercise
+- **Injury-Aware Planning** — Active injuries are cross-referenced against every exercise
 - **Analytics Dashboard**
-  ![New Dashboard](new/assets/dashboard.png)
-  Training volume, cardio progress, personal records, and streak tracking
-- **AI Coach Interaction**
-  ![AI Coach](new/assets/coach.png)
+  ![Analytics](old/assets/analytics.png) — Training volume, cardio progress, personal records, and streak tracking
 - **Dual LLM Support** — Local (Ollama/Mistral) or Cloud (OpenAI GPT-4o)
 - **Full REST API** — Decoupled FastAPI backend with Swagger docs
 - **JWT Authentication** — Secure user accounts with Argon2 password hashing
